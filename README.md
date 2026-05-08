@@ -1,2 +1,3 @@
 # TopicRadar-
 这是一个面向机械/工科背景的小红书创作者的选题与脚本生成工具。用户可以浏览12个按热度排序的垂类话题（覆盖新能源、机器人、航天等），一键生成三段式脚本（钩子句→知识点→CTA），并支持导出 Markdown 文件。配置 DeepSeek/Perplexity API Key 后，还可调用 AI 实时刷新热榜、生成真实脚本内容。
+我的DeepSeek API Key：sk-3c6ffcc7c4b145eda1668174b0bf4518
