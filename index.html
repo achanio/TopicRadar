@@ -93,7 +93,9 @@ a,button,[role="button"]{transition:color var(--trans),background var(--trans),
 .btn-icon{width:32px;height:32px;border-radius:var(--radius-md);display:flex;align-items:center;
   justify-content:center;color:var(--muted);border:1px solid var(--bdr);background:var(--surface2)}
 .btn-icon:hover{color:var(--text);background:var(--surface3)}
-.sdot{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
+.sdot.ok{background:var(--ok)}
+.sdot.err{background:var(--err)}
 .sdot.loading{background:var(--warn);animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
@@ -324,12 +326,12 @@ a,button,[role="button"]{transition:color var(--trans),background var(--trans),
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">垂类筛选</div>
-    <button class="nav-item" onclick="setF('all')"><i data-lucide="layers"></i>全部垂类</button>
-    <button class="nav-item" onclick="setF('机械原理')"><i data-lucide="cog"></i>机械原理</button>
-    <button class="nav-item" onclick="setF('新能源')"><i data-lucide="zap"></i>新能源汽车</button>
-    <button class="nav-item" onclick="setF('制造业')"><i data-lucide="factory"></i>制造业</button>
-    <button class="nav-item" onclick="setF('航天')"><i data-lucide="rocket"></i>航天航空</button>
-    <button class="nav-item" onclick="setF('机器人')"><i data-lucide="cpu"></i>机器人</button>
+    <button class="nav-item nav-cat" data-cat="all"><i data-lucide="layers"></i>全部垂类</button>
+    <button class="nav-item nav-cat" data-cat="机械原理"><i data-lucide="cog"></i>机械原理</button>
+    <button class="nav-item nav-cat" data-cat="新能源"><i data-lucide="zap"></i>新能源汽车</button>
+    <button class="nav-item nav-cat" data-cat="制造业"><i data-lucide="factory"></i>制造业</button>
+    <button class="nav-item nav-cat" data-cat="航天"><i data-lucide="rocket"></i>航天航空</button>
+    <button class="nav-item nav-cat" data-cat="机器人"><i data-lucide="cpu"></i>机器人</button>
   </div>
   <div class="nav-sec" style="margin-top:auto">
     <div class="nav-lbl">工具</div>
@@ -460,13 +462,16 @@ const TMPL={
 
 // ─── STATE ───────────────────────────────────────────────
 let saved=new Set(),scripts=[],cur=null,filter='all',scount=0;
-let apiKey='',apiProvider='deepseek';
+let apiKey='sk-3c6ffcc7c4b145eda1668174b0bf4518',apiProvider='deepseek';
 
 // ─── STATUS ──────────────────────────────────────────────
 function setStatus(text,type){
   document.getElementById('stext').textContent=text;
   const dot=document.getElementById('sdot');
-  dot.className='sdot'+(type==='loading'?' loading':'');
+  if(type==='loading') dot.className='sdot loading';
+  else if(type==='ok') dot.className='sdot ok';
+  else if(type==='err') dot.className='sdot err';
+  else dot.className='sdot';
 }
 
 // ─── RENDER RADAR ────────────────────────────────────────
@@ -521,16 +526,26 @@ function renderCards(list){
     </div>`).join('');
 }
 
-function setF(f){filter=f;}
+function setF(f){
+  filter=f;
+  document.querySelectorAll('.nav-cat').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.cat===f);
+  });
+  // switch to radar tab
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-radar')?.classList.add('active');
+  document.querySelectorAll('.nav-item:not(.nav-cat)').forEach(n=>{
+    const oc=n.getAttribute('onclick')||'';
+    n.classList.toggle('active', oc.includes("switchTab('radar')"));
+  });
+  renderRadar();
+}
 function toggleSave(id){saved.has(id)?saved.delete(id):saved.add(id);renderRadar();}
 function selTopic(id){cur=TOPICS.find(t=>t.id===id);document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));document.getElementById('c-'+id)?.classList.add('sel');}
 
 // ─── FETCH LIVE TOPICS via Perplexity ───────────────────
 async function fetchLiveTopics(){
-  if(!apiKey){
-    alert('需要先配置 API Key（点击顶部「⚙ API 设置」标签）才能 AI 刷新热榜。\n\n当前显示的是内置话题数据，可直接使用。');
-    return;
-  }
+
   setStatus('正在用 AI 抓取热榜…','loading');
   try{
     const prompt=`你是小红书机械/工科内容领域的数据分析师。请搜索并列出当前（${new Date().toLocaleDateString('zh-CN')}）小红书、B站、微博上，机械工程/新能源/制造业/机器人/航天 这五个垂类中热度最高的5个内容话题。
@@ -645,7 +660,7 @@ async function callAI(prompt,maxTokens=1200){
 }
 
 async function generateScript(){
-  if(!apiKey){alert('请先在「⚙ API 设置」标签中配置 API Key。\n\n当前显示的是内置模板脚本，可直接编辑使用。');return;}
+
   const btn=document.getElementById('genBtn');
   btn.disabled=true;btn.innerHTML='<i data-lucide="loader-2" style="width:15px;height:15px"></i> 生成中…';lucide.createIcons();
   setStatus('正在生成脚本…','loading');
@@ -744,6 +759,9 @@ async function testApiKey(){
   const prov=document.getElementById('provSel')?.value||'deepseek';
   if(!key){alert('请先粘贴 API Key');return;}
   apiKey=key;apiProvider=prov;
+  const _pn={deepseek:'DeepSeek',perplexity:'Perplexity',openai:'OpenAI'};
+  if(apiKey) setStatus(`已接入 ${_pn[apiProvider]||apiProvider} ✓`,'ok');
+  else setStatus('未接入 API','');
   const res=document.getElementById('testResult');
   res.className='api-status idle';res.innerHTML='<i data-lucide="loader-2" style="width:12px;height:12px"></i> 测试中…';lucide.createIcons();
   setStatus('测试 API 连接…','loading');
@@ -829,8 +847,13 @@ function renderDeploy(){
 function switchTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+tab)?.classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  if(tab==='radar'){document.querySelector('.nav-item').classList.add('active');renderRadar();}
+  document.querySelectorAll('.nav-item:not(.nav-cat)').forEach(n=>n.classList.remove('active'));
+  if(tab==='radar'){
+    document.querySelectorAll('.nav-item:not(.nav-cat)').forEach(n=>{
+      if((n.getAttribute('onclick')||'').includes("switchTab('radar')")) n.classList.add('active');
+    });
+    renderRadar();
+  }
   else if(tab==='saved'){const s=TOPICS.filter(t=>saved.has(t.id));const c=document.getElementById('tabContent');c.innerHTML=`<div class="grid">${renderCards(s)}</div>`;lucide.createIcons();}
   else if(tab==='scripts'){
     const c=document.getElementById('tabContent');
@@ -1019,6 +1042,22 @@ function stopAutoRefresh() {
 }
 
 // ─── INIT ────────────────────────────────────────────────
+// Category filter: event delegation (avoids HTML quote escaping issues)
+document.querySelector('.sidebar').addEventListener('click', e=>{
+  const btn = e.target.closest('.nav-cat');
+  if(btn) setF(btn.dataset.cat);
+});
+// Mark "全部" as active by default
+document.querySelector('.nav-cat[data-cat="all"]')?.classList.add('active');
+
+// Show API connection status on load
+const _providerNames = {deepseek:'DeepSeek', perplexity:'Perplexity', openai:'OpenAI'};
+if(apiKey){
+  setStatus(`已接入 ${_providerNames[apiProvider]||apiProvider} ✓`, 'ok');
+} else {
+  setStatus('未接入 API', '');
+}
+
 switchTab('radar');
 </script>
 </body>
